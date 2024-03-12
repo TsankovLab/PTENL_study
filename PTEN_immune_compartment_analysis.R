@@ -2,11 +2,11 @@ conda activate scrnatools
 use UGER
 R
 
-source ('PTEN_repo/useful_functions.R')
-source ('PTEN_repo/R_libraries.R')
-source ('PTEN_repo/ggplot_aestetics.R')
+source ('PTENL_study/useful_functions.R')
+source ('PTENL_study/load_libraries.R')
+source ('PTENL_study/ggplot_aestetics.R')
 
-srt = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/srt.rds')
+srt = readRDS ('srt.rds')
 
 # Add pallette
 trm_pal = setNames (c('black','grey44', 'darkgreen'), c('CB2_PTENL','CB2_PTENL_C124S','GFP')) 

@@ -12,7 +12,7 @@ packages = c(
   'harmony',
   'clusterProfiler',
   'rstatix',
-  'paletteer',
+  'paletteer'
 )
 lapply(packages, require, character.only = TRUE)
 
