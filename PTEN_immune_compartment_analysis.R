@@ -2,8 +2,9 @@ conda activate scrnatools
 use UGER
 R
 
-library (cowplot)
-library (rstatix)
+source ('PTEN_repo/useful_functions.R')
+source ('PTEN_repo/R_libraries.R')
+source ('PTEN_repo/ggplot_aestetics.R')
 
 srt = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/srt.rds')
 
