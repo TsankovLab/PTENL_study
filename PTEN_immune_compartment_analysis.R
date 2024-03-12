@@ -25,7 +25,6 @@ cc_box1 = cellComp (
   pal = trm_pal,
   ) + gtheme_no_text
 
-library (rstatix)
 cc_df = cc_box1$data
 stat.test <- cc_df %>%
   group_by_at (metaGroupName) %>%
