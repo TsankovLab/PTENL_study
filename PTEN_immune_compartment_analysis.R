@@ -71,13 +71,6 @@ dev.off()
 
 ### FIGURE 6C - fgsea analysis of DEG between (PTENL vs controls (PTENL_mut + GFP) identified with muscat ####
 fgseaResAll = readRDS ('PTENL_study/data/fgsea_results.rds')
-reac_terms = unique(unlist(lapply (fgseaResAll[[1]], function(x) x$pathway) ))
-mhc_terms = reac_terms[grep ('MHC',reac_terms)]
-mhc_genes = unique(unlist(lapply (fgseaResAll [[1]], function(x) x[x$pathway %in% mhc_terms,'leadingEdge'])))
-tbl_df2 = tbl_df[!is.na(tbl_df$p_val_adj),]
-tbl_df2 = tbl_df2[tbl_df2$p_val_adj < 0.05, ]
-mhc_sig_genes = tbl_df2[tbl_df2$gene %in% mhc_genes, ]
-
 # Plot dotplot of fGSEA annotations per cluster 
 top_pathways = Inf
 int_pathways = c('interferon','antigen','cytokine')
