@@ -16,7 +16,8 @@ packages = c(
   'dplyr',
   'tidyr',
   'ggtree',
-  'aplot'
+  'aplot',
+  'circlize'
 )
 lapply(packages, require, character.only = TRUE)
 
