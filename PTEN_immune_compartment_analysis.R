@@ -70,7 +70,7 @@ dev.off()
 
 
 ### FIGURE 6C - fgsea analysis of DEG between (PTENL vs controls (PTENL_mut + GFP) identified with muscat ####
-fgseaResAll = readRDS ('data/fgsea_results.rds')
+fgseaResAll = readRDS ('PTENL_study/data/fgsea_results.rds')
 reac_terms = unique(unlist(lapply (fgseaResAll[[1]], function(x) x$pathway) ))
 mhc_terms = reac_terms[grep ('MHC',reac_terms)]
 mhc_genes = unique(unlist(lapply (fgseaResAll [[1]], function(x) x[x$pathway %in% mhc_terms,'leadingEdge'])))
@@ -135,7 +135,7 @@ dev.off()
 
 
 ### FIGURE 6E - CellphoneDB analysis identifying differentially expressed ligand-receptors between PTENL and CONTROLS (PTENL_MUT + GFP) ####
-results.df = readRDS ('data/cellphonedb_results.rds')
+results.df = readRDS ('PTENL_study/data/cellphonedb_results.rds')
 
 # Filtering low variable interactions
 results.df = results.df[results.df$diffprop != 0, ]
