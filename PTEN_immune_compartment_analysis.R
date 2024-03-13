@@ -2,6 +2,8 @@ conda activate scrnatools
 use UGER
 R
 
+dir.create ('Plots')
+
 source ('PTENL_study/useful_functions.R')
 source ('PTENL_study/load_libraries.R')
 source ('PTENL_study/ggplot_aestetics.R')
@@ -12,8 +14,9 @@ srt = readRDS ('srt.rds')
 trm_pal = setNames (c('black','grey44', 'darkgreen'), c('CB2_PTENL','CB2_PTENL_C124S','GFP')) 
 pal_heatmap = c('#67A9CF','#EF8A62')
 
-
+reductionName = 'sampleID_harmony_umap'
 metaGroupName = 'celltype2'
+
 umap1 = DimPlot (srt, group.by = metaGroupName, pt.size=0.01, reduction = reductionName, label=F)+ NoAxes() + NoLegend()
 umap2 = DimPlot (srt, group.by = 'treatment', pt.size=0.01, reduction = reductionName)+ NoAxes()
 
@@ -33,7 +36,7 @@ stat.test <- cc_df %>%
   add_significance()
 stat.test <- stat.test %>% add_xy_position (x = metaGroupName, step.increase=0.01)
 
-pdf (paste0(projdir,'Plots/cell_composition_',metaGroupName,'.pdf'), width=13, height=3)
+pdf (paste0('Plots/cell_composition_',metaGroupName,'.pdf'), width=13, height=3)
 (umap1 | cc_box1) 
 plot_layout (widths= c(2,5))
 dev.off()
@@ -62,11 +65,10 @@ stat.test = stat.test %>% add_xy_position (x = metaGroupName, step.increase=0.1)
 cc_box1 = cc_box1 + stat_pvalue_manual (stat.test, remove.bracket=FALSE,
    bracket.nudge.y = .01, hide.ns = TRUE,
     label = "p.adj.signif")
-pdf (paste0(projdir,'Plots/cell_composition_',metaGroupName,'.pdf'), width=7, height=3)
+pdf (paste0('Plots/cell_composition_',metaGroupName,'.pdf'), width=7, height=3)
 (umap1 | cc_box1)
 plot_layout (widths= c(2,6))
 dev.off()
-
 
 results.df = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/_cellranger_filtered_Filter_200_500_25/no_harmony/high_quality_subset/sampleID_harmony/immune_subset/sampleID_harmony/CellphoneDBv4_celltypeTIMTAM2/CellphoneDB_results.rds')
 
@@ -83,7 +85,6 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
   row.names(mat1) = mat1$celltype_pair  # put gene in `row`
   mat1 = mat1[,-1] #drop gene column as now in rows
   mat1[is.na (mat1)] = 0
-  
   
   mat2 = results.df %>% 
     dplyr::select(LR, celltype_pair, diffprop) %>%  
@@ -103,14 +104,14 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
   
   ddgram1 = as.dendrogram (clust1) # create dendrogram
   ddgram2 = as.dendrogram (clust2) # create dendrogram
-  ggtree_plot1 = ggtree::ggtree(ddgram1) + layout_dendrogram()
+  ggtree_plot1 = ggtree::ggtree(ddgram1) + ggtree::layout_dendrogram()
   ggtree_plot2 = ggtree::ggtree(ddgram2) 
   
-  results.df3$LR = factor (results.df3$LR, levels = unique(results.df3$LR)[clust2$order])
-  results.df3$celltype_pair = factor (results.df3$celltype_pair, levels = unique(results.df3$celltype_pair)[clust1$order])
-  results.df3$log10pval[results.df3$log10pval < pValThreshold] = 0
-
-  dplot = ggplot(data = results.df3, mapping = aes(x=celltype_pair, y=LR)) +
+  results.df$LR = factor (results.df$LR, levels = unique(results.df$LR)[clust2$order])
+  results.df$celltype_pair = factor (results.df$celltype_pair, levels = unique(results.df$celltype_pair)[clust1$order])
+  results.df$log10pval[results.df$log10pval < .95] = 0
+  results.df$celltype_pair = gsub ('_','',results.df$celltype_pair)
+  dplot = ggplot(data = results.df, mapping = aes(x=celltype_pair, y=LR)) +
     geom_point(shape = 21, aes(fill = diffprop, size = log10pval), color='black') +
 
     scale_fill_gradient2(
@@ -124,27 +125,17 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
     scale_y_discrete(position = "right") + 
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-  if (any (colnames(results.df3) =='sampleID')) dplot = dplot + facet_wrap (~sampleID, ncol=length (unique(results.df3$sampleID)))
+  
   ggtree_plot_col = ggtree_plot1 + xlim2(dplot)
   ggtree_plot = ggtree_plot2 + ylim2(dplot)
   
-  if (!is.null(compGroups)) w_plot = 1500+(70*length(unique(results.df3$celltype_pair))) else w_plot =  11500+(70*length(unique(results.df3$celltype_pair)))
-  png (paste0(cellphonedb_dir, "Plots/dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.png"), width=w_plot, height=500+(60*length(unique(results.df3$LR))), res=300, pointsize=30)
+  png (paste0("Plots/dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.png"), width=3500, height=2100, res=300, pointsize=30)
   print (plot_spacer() + plot_spacer() + ggtree_plot_col + 
     plot_spacer() + plot_spacer() + plot_spacer() +
     ggtree_plot + plot_spacer() + dplot +
     plot_layout(ncol = 3, widths = c(0.4, 0, 4), heights = c(0.4, 0, 4)))
   dev.off()
-  
-  if (!is.null(compGroups)) w_plot = 6+(length(unique(results.df3$celltype_pair))/4) else w_plot =  6 + (length(unique(results.df3$celltype_pair))/4) * length(unique(results.df3$sampleID))
-  pdf (paste0("Plots/dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.pdf"), width= w_plot, height=4+(length(unique(results.df3$LR))/6))
-  print (plot_spacer() + plot_spacer() + ggtree_plot_col + 
-    plot_spacer() + plot_spacer() + plot_spacer() +
-    ggtree_plot + plot_spacer() + dplot +
-    plot_layout(ncol = 3, widths = c(0.4, 0, 4), heights = c(0.4, 0, 4)))
-  dev.off()
-  
-
+    
 ### muscat DS on genotype ###
 force = FALSE
 do.fgsea = TRUE
@@ -154,17 +145,22 @@ ds_method = "DESeq2" #c("edgeR", "DESeq2", "limma-trend", "limma-voom")
 metaGroupName1 = 'sampleID'
 metaGroupName2 = 'celltype_TIMTAM'
 metaGroupName3 = 'treatment2'
-#metaGroupName3 = 'treatment'
-#muscatIdents = c('CB2_PTENL','GFP')
-#muscatIdents = c('CB2_PTENL','CB2_PTENL_C124S')
+
 muscatIdents = c('CB2_PTENL','control')
 pbDS_min_cells = 5
 topGenes = 20 
-show_genes = c('Cxcr3','Cxcr4','Ccr3', 'Ccr1', 'Cxcl10','Cxcl11','Ccl12','Ccl9','Ccl5','Ccl8','Ccl6') # check genes
-#srt2 = srt
-#srt = subset (srt, sampleID2_harmony_snn_res.1 %in% c(0,1,2,3,4,5,6,7))
+show_genes = c('Cxcr3','Cxcr4','Ccr3', 'Ccr1', 'Cxcl10','Cxcl11','Ccl12','Ccl9','Ccl5','Ccl8','Ccl6')
 source ('/ahg/regevdata/projects/ICA_Lung/Bruno/scripts/scrna_pipeline/DS_muscat.R')
 
+ds_pb = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/_cellranger_filtered_Filter_200_500_25/no_harmony/high_quality_subset/sampleID_harmony/immune_subset/sampleID_harmony/muscat_sampleID_celltype_TIMTAM_treatment2_CB2_PTENL_vs_control_method_DESeq2/DEGresults.rds')
+tbl_df = do.call (rbind, ds_pb[['table']][[1]])
+tbl_df = do.call (rbind, ds_pb[['pch_filtered']])
+
+colnames (tbl_df)[colnames (tbl_df) == 'logFC'] = 'avg_log2FC'
+colnames (tbl_df)[colnames (tbl_df) == 'p_adj.loc'] = 'p_val_adj'
+colnames (tbl_df)[colnames (tbl_df) == 'cluster_id'] = 'cluster'
+
+# Plot diff heatmap of significa
 dhm = diffClustHeat ( 
     deg_genes_df = tbl_df,
     # mat1 = srt_Ident1@assays$RNA@data,
@@ -189,35 +185,16 @@ dhm = diffClustHeat (
   max_ncol = ncol (dhm@matrix)    
   max_nrow2 = max (unlist(max_nrow)) / 20 + 2
   max_ncol2 = ifelse (max ((unlist(max_ncol)) / 5.5) < 3, 3, max (unlist(max_ncol)) / 10)
-  pdf (paste0(projdir_ms,'Plots/',topGenes,'_genes_heatmap2.pdf'), width = max_ncol2 +2, height= max_nrow2)
+  pdf (paste0('Plots/',topGenes,'_genes_heatmap2.pdf'), width = max_ncol2 +2, height= max_nrow2)
   draw (dhm, heatmap_legend_side = "right")
   dev.off() 
-
-topGenes=20
-vln_p = lapply ("Macs", 
-  function(x) plotExpression(sce[, sce$cluster_id == x],
-  features = head(top_deg_genes_df$gene[top_deg_genes_df$cluster == x], topGenes),
-  x = "sample_id", colour_by = "group_id", ncol = 3) +
-  guides(fill = guide_legend(override.aes = list(size = 5, alpha = 1))) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + ggtitle (paste('cluster', x)))
-pdf (paste0(projdir_ms,'Plots/top_',topGenes,'_genes_in_Macs_vln_plot2.pdf'), 10,10)
-print (vln_p)
-dev.off()
-
+fgseaResAll = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/_cellranger_filtered_Filter_200_500_25/no_harmony/high_quality_subset/sampleID_harmony/immune_subset/sampleID_harmony/muscat_sampleID_celltype2_treatment2_CB2_PTENL_vs_control_method_DESeq2/fgsea_annotation_c2.cp.reactome.v7.1.symbol.gmt_c5.bp.v7.1.symbol.gmt_h.all.v7.1.symbol.gmt.rds')
 reac_terms = unique(unlist(lapply (fgseaResAll[[1]], function(x) x$pathway) ))
 mhc_terms = reac_terms[grep ('MHC',reac_terms)]
 mhc_genes = unique(unlist(lapply (fgseaResAll [[1]], function(x) x[x$pathway %in% mhc_terms,'leadingEdge'])))
 tbl_df2 = tbl_df[!is.na(tbl_df$p_val_adj),]
 tbl_df2 = tbl_df2[tbl_df2$p_val_adj < 0.05, ]
 mhc_sig_genes = tbl_df2[tbl_df2$gene %in% mhc_genes, ]
-write.csv (mhc_sig_genes, paste0(projdir,'mhc_sig_genes.csv'))
-
-# Check genes in pathways
-#muscatIdents = c('CB2_PTENL','CB2_PTENL_C124S')
-muscatIdents = c('CB2_PTENL','control')
-projdir_ms = paste0(projdir,'muscat_',metaGroupName1,'_',metaGroupName2,'_',metaGroupName3,'_',paste(muscatIdents,collapse='_vs_'),'_method_',ds_method,'/')
-fgseaResAll = readRDS (paste0(projdir_ms, 'fgsea_annotation_',paste(gmt_annotations,collapse='_'),'.rds'))
-fgseaRanks = readRDS (paste0(projdir_ms, 'fgsea_ranks_',paste(gmt_annotations,collapse='_'),'.rds'))
 
 # Plot dotplot of fGSEA annotations per cluster 
 top_pathways = Inf
@@ -230,7 +207,7 @@ fgseaResAll2 = lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x[x$p
     cluster_rows=T,
     cluster_cols=T)
     
-png (paste0(projdir,'Plots/fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
+png (paste0('Plots/fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
 print(fgseaResAll_dp)
 dev.off()
 

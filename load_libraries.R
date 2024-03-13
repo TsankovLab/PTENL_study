@@ -12,7 +12,11 @@ packages = c(
   'harmony',
   'clusterProfiler',
   'rstatix',
-  'paletteer'
+  'paletteer',
+  'dplyr',
+  'tidyr',
+  'ggtree',
+  'aplot'
 )
 lapply(packages, require, character.only = TRUE)
 
