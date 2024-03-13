@@ -1,6 +1,3 @@
-conda activate scrnatools 
-use UGER
-R
 
 dir.create ('Plots')
 
@@ -14,6 +11,7 @@ srt = readRDS ('srt.rds')
 trm_pal = setNames (c('black','grey44', 'darkgreen'), c('CB2_PTENL','CB2_PTENL_C124S','GFP')) 
 pal_heatmap = c('#67A9CF','#EF8A62')
 
+# FIGURE 6A-B - Generate UMAPs and celltype proportions plot ####
 reductionName = 'sampleID_harmony_umap'
 metaGroupName = 'celltype2'
 
@@ -70,7 +68,74 @@ pdf (paste0('Plots/cell_composition_',metaGroupName,'.pdf'), width=7, height=3)
 plot_layout (widths= c(2,6))
 dev.off()
 
-results.df = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/_cellranger_filtered_Filter_200_500_25/no_harmony/high_quality_subset/sampleID_harmony/immune_subset/sampleID_harmony/CellphoneDBv4_celltypeTIMTAM2/CellphoneDB_results.rds')
+
+### FIGURE 6C - fgsea analysis of DEG between (PTENL vs controls (PTENL_mut + GFP) identified with muscat ####
+fgseaResAll = readRDS ('data/fgsea_results.rds')
+reac_terms = unique(unlist(lapply (fgseaResAll[[1]], function(x) x$pathway) ))
+mhc_terms = reac_terms[grep ('MHC',reac_terms)]
+mhc_genes = unique(unlist(lapply (fgseaResAll [[1]], function(x) x[x$pathway %in% mhc_terms,'leadingEdge'])))
+tbl_df2 = tbl_df[!is.na(tbl_df$p_val_adj),]
+tbl_df2 = tbl_df2[tbl_df2$p_val_adj < 0.05, ]
+mhc_sig_genes = tbl_df2[tbl_df2$gene %in% mhc_genes, ]
+
+# Plot dotplot of fGSEA annotations per cluster 
+top_pathways = Inf
+int_pathways = c('interferon','antigen','cytokine')
+int_pathways2 = unlist (lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x$pathway))
+int_pathways3 = unique(unlist(lapply (int_pathways,function(x) int_pathways2[grep (x, int_pathways2)])))
+fgseaResAll2 = lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x[x$pathway %in% int_pathways3,])
+  fgseaResAll_dp = dotGSEA (fgseaResAll2, padj_threshold = 0.05, 
+    type = 'fgsea',top_pathways = top_pathways,
+    cluster_rows=T,
+    cluster_cols=T)
+    
+png (paste0('Plots/fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
+print(fgseaResAll_dp)
+dev.off()
+
+
+
+### FIGURE 6D - heatmap of average expression differences between PTENL vs controls of genes in relevant fgsea pathways ####
+#pathway = c('GO_antigen_processing_and_presentation','GO_antigen_processing_and_presentation_of_peptide_antigen')
+celltype = 'DCs'
+pathway = c('GO_cytokine_production','GO_cellular_response_to_interferon_gamma','GO_T_cell_cytokine_production','GO_cytokine_production_involved_in_immune_response','GO_response_to_cytokine','GO_positive_regulation_of_cytokine_production','GO_cellular_response_to_cytokine_stimulus')
+celltype = c('MregDCs','TAM2','TIM_NC','DCs','TIM_C')
+fgsea1 = as.data.frame (do.call (rbind,fgseaResAll2[celltype]))
+fgsea1[fgsea1$pathway %in% pathway,'leadingEdge']
+
+gene2 = unique(unlist(lapply(fgseaResAll2, function(x) x[grep ('antigen', x$pathway), 'leadingEdge'])))
+#gene2 = unique (unlist (fgsea1[fgsea1$pathway %in% pathway,'leadingEdge']))
+
+ext_avg = AverageExpression (srt, features = gene2, group.by = c('sampleID','celltype_TIMTAM','treatment2'))
+ext_avg = log2(as.data.frame (t(ext_avg[[1]])+1))
+ext_avg = split (ext_avg, grepl ('control', rownames(ext_avg)))
+celltypes = c('DCs','MregDCs','Neutrophils','TAM1','TAM2','TIM_C','TIM_NC','TNKcells','pDCs')
+ext_avg = lapply (ext_avg, function(x) do.call (rbind, lapply (celltypes, function(y) colMeans(x[grepl (y, rownames(x)),]))))
+names(ext_avg) = c('PTENL','control')
+ext_avg = lapply (names(ext_avg), function(x) {rownames (ext_avg[[x]]) = paste0(x,'_',celltypes); ext_avg[[x]]})
+ext_avg = do.call (rbind, ext_avg)
+ext_avg = t(ext_avg)
+agr3 = ext_avg[,grep ('PTENL',colnames(ext_avg))] - ext_avg[,grep ('control',colnames(ext_avg))] 
+rev(RColorBrewer::brewer.pal(3,'RdBu'))
+col_fun = colorRamp2(c(-1, 0, 1), c("#67A9CF", "#F7F7F7", "#EF8A62"))
+
+colnames(agr3) = c('DCs','MregDCs','Neutrophils','TAM1','TAM2','TIM_C','TIM_NC','TNKcells','pDCs')
+avg_hm = Heatmap (agr3, 
+  cluster_rows=T, 
+  cluster_columns=T,
+  column_split = colnames(agr3),
+  width = 1,
+  col = col_fun,
+  row_names_gp = gpar(fontsize = 7), 
+  column_names_gp = gpar (fontsize = 6),
+  border=T)
+png (paste0('Plots/antigen_genes_heatmap_avg3.png'), width = 1050, height= 1900, res=300)
+avg_hm
+dev.off() 
+
+
+### FIGURE 6E - CellphoneDB analysis identifying differentially expressed ligand-receptors between PTENL and CONTROLS (PTENL_MUT + GFP) ####
+results.df = readRDS ('data/cellphonedb_results.rds')
 
 # Filtering low variable interactions
 results.df = results.df[results.df$diffprop != 0, ]
@@ -136,303 +201,3 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
     plot_layout(ncol = 3, widths = c(0.4, 0, 4), heights = c(0.4, 0, 4)))
   dev.off()
     
-### muscat DS on genotype ###
-force = FALSE
-do.fgsea = TRUE
-logfcThreshold = .5
-pvalAdjTrheshold = 0.05
-ds_method = "DESeq2" #c("edgeR", "DESeq2", "limma-trend", "limma-voom")
-metaGroupName1 = 'sampleID'
-metaGroupName2 = 'celltype_TIMTAM'
-metaGroupName3 = 'treatment2'
-
-muscatIdents = c('CB2_PTENL','control')
-pbDS_min_cells = 5
-topGenes = 20 
-show_genes = c('Cxcr3','Cxcr4','Ccr3', 'Ccr1', 'Cxcl10','Cxcl11','Ccl12','Ccl9','Ccl5','Ccl8','Ccl6')
-source ('/ahg/regevdata/projects/ICA_Lung/Bruno/scripts/scrna_pipeline/DS_muscat.R')
-
-ds_pb = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/_cellranger_filtered_Filter_200_500_25/no_harmony/high_quality_subset/sampleID_harmony/immune_subset/sampleID_harmony/muscat_sampleID_celltype_TIMTAM_treatment2_CB2_PTENL_vs_control_method_DESeq2/DEGresults.rds')
-tbl_df = do.call (rbind, ds_pb[['table']][[1]])
-tbl_df = do.call (rbind, ds_pb[['pch_filtered']])
-
-colnames (tbl_df)[colnames (tbl_df) == 'logFC'] = 'avg_log2FC'
-colnames (tbl_df)[colnames (tbl_df) == 'p_adj.loc'] = 'p_val_adj'
-colnames (tbl_df)[colnames (tbl_df) == 'cluster_id'] = 'cluster'
-
-# Plot diff heatmap of significa
-dhm = diffClustHeat ( 
-    deg_genes_df = tbl_df,
-    # mat1 = srt_Ident1@assays$RNA@data,
-    # mat2 = srt_Ident2@assays$RNA@data,
-    # meta1 = srt_Ident1@meta.data[,metaGroupName1],
-    # meta2 = srt_Ident2@meta.data[,metaGroupName1],
-    sort_by = 'avg_log2FC',
-    #sort_by = 'p_val_adj',
-    topGenes = topGenes, 
-    pvalAdjTrheshold = pvalAdjTrheshold,
-    # addGene = addGene,
-    #column_title = feat,
-    col_limit = 3,
-    plotcol = rev(RColorBrewer::brewer.pal(3,'RdBu')),
-    #plotcol = rev(viridis::turbo(3)),
-    name = paste (muscatIdents, collapse = '-'),
-    cluster_columns=T,
-    cluster_rows=T,
-    #row_title = paste (deg2Ident, collapse = ' vs '),
-    border=T)
-  max_nrow = nrow (dhm@matrix)
-  max_ncol = ncol (dhm@matrix)    
-  max_nrow2 = max (unlist(max_nrow)) / 20 + 2
-  max_ncol2 = ifelse (max ((unlist(max_ncol)) / 5.5) < 3, 3, max (unlist(max_ncol)) / 10)
-  pdf (paste0('Plots/',topGenes,'_genes_heatmap2.pdf'), width = max_ncol2 +2, height= max_nrow2)
-  draw (dhm, heatmap_legend_side = "right")
-  dev.off() 
-fgseaResAll = readRDS ('/ahg/regevdata/projects/ICA_Lung/Bruno/Jia_prj/PTENL_demuxEM_seq2_analysis/_cellranger_filtered_Filter_200_500_25/no_harmony/high_quality_subset/sampleID_harmony/immune_subset/sampleID_harmony/muscat_sampleID_celltype2_treatment2_CB2_PTENL_vs_control_method_DESeq2/fgsea_annotation_c2.cp.reactome.v7.1.symbol.gmt_c5.bp.v7.1.symbol.gmt_h.all.v7.1.symbol.gmt.rds')
-reac_terms = unique(unlist(lapply (fgseaResAll[[1]], function(x) x$pathway) ))
-mhc_terms = reac_terms[grep ('MHC',reac_terms)]
-mhc_genes = unique(unlist(lapply (fgseaResAll [[1]], function(x) x[x$pathway %in% mhc_terms,'leadingEdge'])))
-tbl_df2 = tbl_df[!is.na(tbl_df$p_val_adj),]
-tbl_df2 = tbl_df2[tbl_df2$p_val_adj < 0.05, ]
-mhc_sig_genes = tbl_df2[tbl_df2$gene %in% mhc_genes, ]
-
-# Plot dotplot of fGSEA annotations per cluster 
-top_pathways = Inf
-int_pathways = c('interferon','antigen','cytokine')
-int_pathways2 = unlist (lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x$pathway))
-int_pathways3 = unique(unlist(lapply (int_pathways,function(x) int_pathways2[grep (x, int_pathways2)])))
-fgseaResAll2 = lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x[x$pathway %in% int_pathways3,])
-  fgseaResAll_dp = dotGSEA (fgseaResAll2, padj_threshold = pvalAdjTrheshold, 
-    type = 'fgsea',top_pathways = top_pathways,
-    cluster_rows=T,
-    cluster_cols=T)
-    
-png (paste0('Plots/fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
-print(fgseaResAll_dp)
-dev.off()
-
-unique (unlist(fgseaResAll_dp$data$pathway))  
-pathway = c('GO_antigen_processing_and_presentation','GO_antigen_processing_and_presentation_of_peptide_antigen')
-celltype = 'DCs'
-pathway = c('GO_cytokine_production','GO_cellular_response_to_interferon_gamma','GO_T_cell_cytokine_production','GO_cytokine_production_involved_in_immune_response','GO_response_to_cytokine','GO_positive_regulation_of_cytokine_production','GO_cellular_response_to_cytokine_stimulus')
-celltype = c('MregDCs','TAM2','TIM_NC','DCs','TIM_C')
-fgsea1 = as.data.frame (do.call (rbind,fgseaResAll2[celltype]))
-fgsea1[fgsea1$pathway %in% pathway,'leadingEdge']
-
-gene2 = unique(unlist(lapply(fgseaResAll2, function(x) x[grep ('antigen', x$pathway), 'leadingEdge'])))
-gene2 = unique (unlist (fgsea1[fgsea1$pathway %in% pathway,'leadingEdge']))
-
-p = lapply (gene, function(x) VlnPlot (srt, x, split.by = 'treatment', group.by = 'celltype_TIMTAM'))
-pdf (paste0(projdir,'Plots/',pathway[1],'_genes_violin_plot2.pdf'), width=9, height=5)
-p
-dev.off()
-
-# tbl_df2 = tbl_df[tbl_df$gene %in% gene, ]
-# pvalAdjTrheshold=1.1
-# dhm = diffClustHeat (
-#     deg_genes_df = tbl_df2,
-#     # mat1 = srt_Ident1@assays$RNA@data,
-#     # mat2 = srt_Ident2@assays$RNA@data,
-#     # meta1 = srt_Ident1@meta.data[,metaGroupName1],
-#     # meta2 = srt_Ident2@meta.data[,metaGroupName1],
-#     sort_by = 'avg_log2FC',
-#     #sort_by = 'p_val_adj',
-#     topGenes = topGenes, 
-#     pvalAdjTrheshold = pvalAdjTrheshold,
-#     # addGene = addGene,
-#     #column_title = feat,
-#     col_limit = 3,
-#     plotcol = rev(RColorBrewer::brewer.pal(3,'RdBu')),
-#     #plotcol = rev(viridis::turbo(3)),
-#     name = paste (muscatIdents, collapse = '-'),
-#     cluster_columns=T,
-#     cluster_rows=T,
-#     #row_title = paste (deg2Ident, collapse = ' vs '),
-#     border=T)
-#   pdf (paste0(projdir,'Plots/',pathway[1],'_genes_heatmap2.pdf'), width = 6, height= 3)
-#   draw (dhm, heatmap_legend_side = "right")
-#   dev.off() 
-
-metagroup_df = data.frame (
- barcode = colnames(srt),
- condition = srt@meta.data[,metaGroupName3], 
- cluster = srt@meta.data[,metaGroupName2])
-metagroup_df = metagroup_df[metagroup_df$condition %in% c(muscatIdents[1],muscatIdents[2]),]
-  
-agr = srt@assays$RNA@data[,metagroup_df$barcode]
-agr = agr[rownames (agr) %in% gene2, ]
-agr = as.data.frame (t(agr))
-agr2 = agr
-agr2$cluster = paste0(srt$treatment2, '__', srt$celltype_TIMTAM)
-agr2 = aggregate (.~cluster, agr2, mean)
-rownames (agr2) = agr2$cluster
-col_split = sapply (agr2$cluster, function(x) unlist(strsplit (x, '__'))[[2]])
-agr2 = agr2[,-1]
-#agr = (apply(t(agr), 1, function(x)(x-min(x))/(max(x)-min(x))))
-
-ha2 = HeatmapAnnotation (condition = metagroup_df$condition, col=list(condition=setNames(pal_heatmap,c(muscatIdents[1],muscatIdents[2]))))
-allcells_hm = Heatmap (t(agr), 
-  cluster_rows=T, 
-  cluster_columns=T,
-  column_title_rot = 90,
-  #column_title = paste0(pathway, ' DEG LFC >',logfcThreshold2, 'pval < ',pvalAdjTrheshold2), 
-  #column_title_side = 'bottom',
-  column_split = paste0(metagroup_df$condition, ' ',metagroup_df$cluster),
-  #column_split = metagroup_df$cluster,
-  #top_annotation = ha2,
-  top_annotation = ha2,
-  width = 1,
-  #col=dichromat::colorschemes$DarkRedtoBlue.18,
-  #col=RColorBrewer::brewer.pal (9,'Reds'),
-  col=viridis::turbo(100),
-  row_names_gp = gpar(fontsize = 14), 
-  column_names_gp = gpar (fontsize = 0),
-  border=T)
-
-pdf (paste0(projdir,'Plots/',pathway[1],'_heatmap_cells2.pdf'), width = 16, height= 10)
-  draw (allcells_hm, heatmap_legend_side = "right")
-  dev.off()
-
-agr3 = agr2[grep ('PTENL',rownames(agr2)),] - agr2[grep ('control',rownames(agr2)),] 
-rev(RColorBrewer::brewer.pal(3,'RdBu'))
-col_fun = colorRamp2(c(-1, 0, 1), c("#67A9CF", "#F7F7F7", "#EF8A62"))
-#agr3 = max (abs(agr3))
-avg_hm = Heatmap (t(agr3), 
-  cluster_rows=T, 
-  cluster_columns=T,
-  column_title_rot = 90,
-  #column_title = paste0(pathway, ' DEG LFC >',logfcThreshold2, 'pval < ',pvalAdjTrheshold2), 
-  #column_title_side = 'bottom',
-  column_split = rownames(agr3),
-  #column_split = metagroup_df$cluster,
-  #top_annotation = ha2,
-  #top_annotation = ha2,
-  width = 1,
-  #col=dichromat::colorschemes$DarkRedtoBlue.18,
-  #col=RColorBrewer::brewer.pal (9,'Reds'),
-  #col=viridis::turbo(10),
-  col = col_fun,
-  row_names_gp = gpar(fontsize = 7), 
-  column_names_gp = gpar (fontsize = 6),
-  border=T)
-png (paste0(projdir,'Plots/',pathway[1],'_genes_heatmap_avg2.png'), width = 1050, height= 15700, res=300)
-avg_hm
-dev.off() 
-
-
-gene = c('Cxcr3','Cxcr4','Ccr3', 'Ccr1', 'Cxcl10','Cxcl11','Ccl12','Ccl9','Ccl5','Ccl8')
-gene1 = c('Il1b','Cxcl10','Il6','Il10','Ccl22','Ccl4','Ccl5','Ccl3','Ifng')
-gene_selection = gene [gene %in% colnames (agr3)]
-gene_selection = append (gene_selection,colnames (agr3)[grep ('Ifn', colnames(agr3))])
-gene_selection = append (gene_selection,colnames (agr3)[grep ('Tnf', colnames(agr3))])
-gene_selection = append (gene_selection,colnames (agr3)[grep ('Il', colnames(agr3))])
-gene_selection = append (gene_selection,colnames (agr3)[grep ('Ccl', colnames(agr3))])
-gene_selection = append (gene_selection,colnames (agr3)[grep ('Cxcl', colnames(agr3))])
-gene_selection = append (gene_selection, gene1)
-
-agr = srt@assays$RNA@data[,metagroup_df$barcode]
-agr = agr[rownames (agr) %in% gene_selection, ]
-agr = as.data.frame (t(agr))
-agr2 = agr
-agr2$cluster = paste0(srt$treatment2, '__', srt$celltype_TIMTAM)
-agr2 = aggregate (.~cluster, agr2, mean)
-rownames (agr2) = agr2$cluster
-col_split = sapply (agr2$cluster, function(x) unlist(strsplit (x, '__'))[[2]])
-agr2 = agr2[,-1]
-agr3 = agr2[grep ('PTENL',rownames(agr2)),] - agr2[grep ('control',rownames(agr2)),] 
-
-#agr = (apply(t(agr), 1, function(x)(x-min(x))/(max(x)-min(x))))
-
-avg_hm = Heatmap (t(agr3[,unique(gene_selection)]), 
-  cluster_rows=T, 
-  cluster_columns=T,
-  column_title_rot = 90,
-  #column_title = paste0(pathway, ' DEG LFC >',logfcThreshold2, 'pval < ',pvalAdjTrheshold2), 
-  #column_title_side = 'bottom',
-  column_split = rownames(agr3),
-  #column_split = metagroup_df$cluster,
-  #top_annotation = ha2,
-  #top_annotation = ha2,
-  width = 1,
-  #col=dichromat::colorschemes$DarkRedtoBlue.18,
-  #col=RColorBrewer::brewer.pal (9,'Reds'),
-  #col=viridis::turbo(10),
-  col = col_fun,
-  row_names_gp = gpar(fontsize = 7), 
-  column_names_gp = gpar (fontsize = 6),
-  border=T)
-png (paste0(projdir,'Plots/Cytokines_genes_heatmap_avg_refined.png'), width = 1050, height= 2700, res=300)
-avg_hm
-dev.off() 
-
-
-
-
-pathway = 'HALLMARK_INTERFERON_GAMMA_RESPONSE'
-fgsea1 = as.data.frame (fgseaResAll[['h.all.v7.1.symbol.gmt']][['DCs']])
-fgsea1[fgsea1$pathway == pathway,'leadingEdge']
-
-
-# Check chemokines
-metaGroupName = 'sampleID'
-metaGroupName2 = 'treatment'
-gene = c('Cxcr3','Cxcr4','Ccr3', 'Ccr1', 'Cxcl10','Cxcl11','Ccl12','Ccl9','Ccl5','Ccl8','Ccl6')
-p = geneDot (
-  gene = gene,
-  y = srt$celltype_TIMTAM,
-  x = 'sampleGenotype',
-  z = srt$treatment2,
-  min_expression = 0)
-
-pdf (paste0(projdir, 'Plots/cytokines_expression_dotplot.pdf'))
-p
-dev.off()
-
-# Run WGCNA
-# Set variables
-force=FALSE # force re-running WGCNA 
-do.fgsea=TRUE
-powerTable=FALSE # plot the powerTable plot. Can take a while to generate
-do.plots=TRUE
-softPower=5 # Set the softPower
-deepSplit=1 # Set this to increase decrease the number of modules idendified. 1-4
-mergeCutHeight = 0.25 # Height below which two modules are merged
-metacells_k = 30 # number of cells to create pseudobulks
-max_shared = 20
-metacells_groups = c('sampleID','treatment') # set metagroup in which to find metacells (usually your clustering / celltypes)
-metaGroupNames = c('sampleID','celltype_wgcna','treatment') # set of metagroups for generating the boxplots
-module_pal = trm_pal
-minModuleSize = 30
-#genes.keep = VariableFeatures (FindVariableFeatures (srt, nfeat = 10000)) # Genes to use to compute WGCNA
-genes.keep = VariableFeatures (FindVariableFeatures (srt, nfeat=5000))
-enricher_universe = rownames(srt) # Genes to use as background for pathway enrichments analysis
-source (paste0(scrna_pipeline_dir,'scWGCNA.R'))
-
-tbl2 = tbl_df[tbl_df$gene %in% modules[modules$module == 'turquoise','gene_name'],]
-tbl2 = tbl2[!is.na(tbl2$p_val_adj),]
-tbl2 = tbl2[tbl2$p_val_adj < 0.05,]
-
-tbl2 = tbl_df[tbl_df$gene %in% modules[modules$module == 'pink','gene_name'],]
-tbl2 = tbl2[!is.na(tbl2$p_val_adj),]
-tbl2 = tbl2[tbl2$p_val_adj < 0.05,]
-
-
-# Subset for malignant and stromal comp
-force=TRUE
-subclustername = 'momacs'
-#metaGroupName='RNA_snn_res.0.8'
-#metaGroupSelection=c(2,3,4,6,12,15,16,18,20,21)
-metaGroupName='celltype'
-metaGroupSelection=c('Macs','Macs_proliferating','Mono1','Mono2','Mono_Spp1')
-exclude=FALSE
-source (paste0(scrna_pipeline_dir,'subcluster.R'))
-
-# Subset for malignant and stromal comp
-force=FALSE
-subclustername = 'TNKcells'
-#metaGroupName='RNA_snn_res.0.8'
-#metaGroupSelection=c(2,3,4,6,12,15,16,18,20,21)
-metaGroupName='celltype'
-metaGroupSelection=c('TNKcells')
-exclude=FALSE
-source (paste0(scrna_pipeline_dir,'subcluster.R'))
