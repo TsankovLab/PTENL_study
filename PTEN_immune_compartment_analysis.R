@@ -13,33 +13,7 @@ pal_heatmap = c('#67A9CF','#EF8A62')
 
 # FIGURE 6A-B - Generate UMAPs and celltype proportions plot ####
 reductionName = 'sampleID_harmony_umap'
-metaGroupName = 'celltype2'
-
-umap1 = DimPlot (srt, group.by = metaGroupName, pt.size=0.01, reduction = reductionName, label=F)+ NoAxes() + NoLegend()
-umap2 = DimPlot (srt, group.by = 'treatment', pt.size=0.01, reduction = reductionName)+ NoAxes()
-
-cc_box1 = cellComp (
-  seurat_obj = srt, 
-  metaGroups = c('sampleID', metaGroupName,'treatment',metaGroupName),
-  plot_as = 'box',
-  ptable_factor = c(1),
-  pal = trm_pal,
-  ) + gtheme_no_text
-
-cc_df = cc_box1$data
-stat.test <- cc_df %>%
-  group_by_at (metaGroupName) %>%
-  t_test(Freq ~ treatment) %>%
-  adjust_pvalue(method = "fdr") %>%
-  add_significance()
-stat.test <- stat.test %>% add_xy_position (x = metaGroupName, step.increase=0.01)
-
-pdf (paste0('Plots/cell_composition_',metaGroupName,'.pdf'), width=13, height=3)
-print (umap1 | cc_box1) 
-plot_layout (widths= c(2,5))
-dev.off()
-
-metaGroupName = 'celltype_TIMTAM'
+metaGroupName = 'celltype'
 cc_box1 = cellComp (
   seurat_obj = srt, 
   metaGroups = c('sampleID', metaGroupName,'treatment'),
@@ -47,16 +21,16 @@ cc_box1 = cellComp (
   ptable_factor = c(1),
   pal = trm_pal,
   ) + gtheme
-order_subtypes = do.call (rbind, lapply (split (cc_box1$data,cc_box1$data$celltype_TIMTAM), function(x) mean (x$Freq)))
+order_subtypes = do.call (rbind, lapply (split (cc_box1$data,cc_box1$data$celltype), function(x) mean (x$Freq)))
 order_subtypes = setNames (order_subtypes[,1], rownames(order_subtypes))
-cc_box1$data$celltype_TIMTAM = factor (cc_box1$data$celltype_TIMTAM, levels = names(order_subtypes[order(-order_subtypes)]))
+cc_box1$data$celltype = factor (cc_box1$data$celltype, levels = names(order_subtypes[order(-order_subtypes)]))
 
 library (rstatix)
 cc_df = cc_box1$data
 stat.test <- cc_df %>%
   group_by_at (metaGroupName) %>%
   t_test(Freq ~ treatment) %>%
-  adjust_pvalue(method = "fdr") %>%
+  adjust_pvalue(method = "none") %>%
   add_significance()
 stat.test = stat.test %>% add_xy_position (x = metaGroupName, step.increase=0.1)
 
@@ -89,17 +63,22 @@ dev.off()
 
 
 ### FIGURE 6D - heatmap of average expression differences between PTENL vs controls of genes in relevant fgsea pathways ####
-#pathway = c('GO_antigen_processing_and_presentation','GO_antigen_processing_and_presentation_of_peptide_antigen')
-celltype = 'DCs'
-pathway = c('GO_cytokine_production','GO_cellular_response_to_interferon_gamma','GO_T_cell_cytokine_production','GO_cytokine_production_involved_in_immune_response','GO_response_to_cytokine','GO_positive_regulation_of_cytokine_production','GO_cellular_response_to_cytokine_stimulus')
-celltype = c('MregDCs','TAM2','TIM_NC','DCs','TIM_C')
+pathway = c(
+  'GO_cytokine_production',
+  'GO_cellular_response_to_interferon_gamma',
+  'GO_T_cell_cytokine_production',
+  'GO_cytokine_production_involved_in_immune_response',
+  'GO_response_to_cytokine',
+  'GO_positive_regulation_of_cytokine_production',
+  'GO_cellular_response_to_cytokine_stimulus')
+
+celltype = c('MregDCs','TAM1','TAM2','TIM_NC','DCs','TIM_C')
 fgsea1 = as.data.frame (do.call (rbind,fgseaResAll2[celltype]))
 fgsea1[fgsea1$pathway %in% pathway,'leadingEdge']
 
 gene2 = unique(unlist(lapply(fgseaResAll2, function(x) x[grep ('antigen', x$pathway), 'leadingEdge'])))
-#gene2 = unique (unlist (fgsea1[fgsea1$pathway %in% pathway,'leadingEdge']))
 
-ext_avg = AverageExpression (srt, features = gene2, group.by = c('sampleID','celltype_TIMTAM','treatment2'))
+ext_avg = AverageExpression (srt, features = gene2, group.by = c('sampleID','celltype','treatment2'))
 ext_avg = log2(as.data.frame (t(ext_avg[[1]])+1))
 ext_avg = split (ext_avg, grepl ('control', rownames(ext_avg)))
 celltypes = c('DCs','MregDCs','Neutrophils','TAM1','TAM2','TIM_C','TIM_NC','TNKcells','pDCs')
@@ -165,13 +144,12 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
   ggtree_plot1 = ggtree::ggtree(ddgram1) + ggtree::layout_dendrogram()
   ggtree_plot2 = ggtree::ggtree(ddgram2) 
   
-  results.df$LR = factor (results.df$LR, levels = unique(results.df$LR)[clust2$order])
-  results.df$celltype_pair = factor (results.df$celltype_pair, levels = unique(results.df$celltype_pair)[clust1$order])
+  results.df$LR = factor (results.df$LR, levels = rownames(mat2)[clust2$order])
+  results.df$celltype_pair = factor (results.df$celltype_pair, levels = rownames(mat1)[clust1$order])
   results.df$log10pval[results.df$log10pval < .95] = 0
-  results.df$celltype_pair = gsub ('_','',results.df$celltype_pair)
+  #results.df$celltype_pair = gsub ('_','',results.df$celltype_pair)
   dplot = ggplot(data = results.df, mapping = aes(x=celltype_pair, y=LR)) +
     geom_point(shape = 21, aes(fill = diffprop, size = log10pval), color='black') +
-
     scale_fill_gradient2(
       low = "#67A9CF", 
       mid = "#F7F7F7", 
@@ -187,7 +165,7 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
   ggtree_plot_col = ggtree_plot1 + xlim2(dplot)
   ggtree_plot = ggtree_plot2 + ylim2(dplot)
   
-  png (paste0("Plots/dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.png"), width=3500, height=2100, res=300, pointsize=30)
+  png (paste0("Plots/FIGURE_6E_dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.png"), width=3500, height=2100, res=300, pointsize=30)
   print (plot_spacer() + plot_spacer() + ggtree_plot_col + 
     plot_spacer() + plot_spacer() + plot_spacer() +
     ggtree_plot + plot_spacer() + dplot +
