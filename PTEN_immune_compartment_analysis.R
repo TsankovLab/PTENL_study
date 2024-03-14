@@ -12,6 +12,10 @@ trm_pal = setNames (c('black','grey44', 'darkgreen'), c('CB2_PTENL','CB2_PTENL_C
 pal_heatmap = c('#67A9CF','#EF8A62')
 
 # FIGURE 6A-B - Generate UMAPs and celltype proportions plot ####
+metaGroupName = 'celltype'
+umap1 = DimPlot (srt, group.by = metaGroupName, pt.size=0.01, reduction = reductionName, label=F)+ NoAxes() + NoLegend()
+umap2 = DimPlot (srt, group.by = 'treatment', pt.size=0.01, reduction = reductionName)+ NoAxes()
+
 reductionName = 'sampleID_harmony_umap'
 metaGroupName = 'celltype'
 cc_box1 = cellComp (
@@ -30,16 +34,15 @@ cc_df = cc_box1$data
 stat.test <- cc_df %>%
   group_by_at (metaGroupName) %>%
   t_test(Freq ~ treatment) %>%
-  adjust_pvalue(method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
   add_significance()
 stat.test = stat.test %>% add_xy_position (x = metaGroupName, step.increase=0.1)
 
 cc_box1 = cc_box1 + stat_pvalue_manual (stat.test, remove.bracket=FALSE,
    bracket.nudge.y = .01, hide.ns = TRUE,
     label = "p.adj.signif")
-pdf (paste0('Plots/cell_composition_',metaGroupName,'.pdf'), width=7, height=3)
-print ((umap1 | cc_box1))
-plot_layout (widths= c(2,6))
+pdf (paste0('Plots/FIGURE_6AB_cell_composition_',metaGroupName,'_FDR.pdf'), width=7, height=3)
+print ((umap1 | cc_box1) + plot_layout (widths= c(2,6)))
 dev.off()
 
 
@@ -56,7 +59,7 @@ fgseaResAll2 = lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x[x$p
     cluster_rows=T,
     cluster_cols=T)
     
-png (paste0('Plots/fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
+png (paste0('Plots/FIGURE_6C_fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
 print(fgseaResAll_dp)
 dev.off()
 
@@ -96,12 +99,15 @@ avg_hm = Heatmap (agr3,
   cluster_rows=T, 
   cluster_columns=T,
   column_split = colnames(agr3),
+  column_title_gp = gpar(fontsize = 0),
+#  column_labels = NA,
+#  column_title = NA,
   width = 1,
   col = col_fun,
   row_names_gp = gpar(fontsize = 7), 
   column_names_gp = gpar (fontsize = 6),
   border=T)
-png (paste0('Plots/antigen_genes_heatmap_avg3.png'), width = 1050, height= 1900, res=300)
+png (paste0('Plots/FIGURE_6D_antigen_genes_heatmap_avg3.png'), width = 1050, height= 1900, res=300)
 print (avg_hm)
 dev.off() 
 

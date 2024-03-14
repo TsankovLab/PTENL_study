@@ -17,7 +17,8 @@ packages = c(
   'tidyr',
   'ggtree',
   'aplot',
-  'circlize'
+  'circlize',
+  'DirichletReg'
 )
 lapply(packages, require, character.only = TRUE)
 
