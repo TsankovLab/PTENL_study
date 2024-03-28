@@ -42,13 +42,13 @@ cc_box1 = cc_box1 + stat_pvalue_manual (stat.test, remove.bracket=FALSE,
    bracket.nudge.y = .01, hide.ns = TRUE,
     label = "p.adj.signif")
 pdf (paste0('Plots/FIGURE_6AB_cell_composition_',metaGroupName,'_FDR.pdf'), width=7, height=3)
-print ((umap1 | cc_box1) + plot_layout (widths= c(2,6)))
+print ((umap1 | cc_box1) + plot_layout (widths= c(3,6)))
 dev.off()
 
 
 ### FIGURE 6C - fgsea analysis of DEG between (PTENL vs controls (PTENL_mut + GFP) identified with muscat ####
 fgseaResAll = readRDS ('PTENL_study/data/fgsea_results.rds')
-# Plot dotplot of fGSEA annotations per cluster 
+# Plot dotplot of fGSEA annotations per cluster
 top_pathways = Inf
 int_pathways = c('interferon','antigen','cytokine')
 int_pathways2 = unlist (lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x$pathway))
@@ -57,13 +57,11 @@ fgseaResAll2 = lapply (fgseaResAll[['c5.bp.v7.1.symbol.gmt']], function(x) x[x$p
   fgseaResAll_dp = dotGSEA (fgseaResAll2, padj_threshold = 0.05, 
     type = 'fgsea',top_pathways = top_pathways,
     cluster_rows=T,
-    cluster_cols=T)
+    cluster_cols=T) + gtheme
     
-png (paste0('Plots/FIGURE_6C_fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.png'),2800,1000, res=300)
+pdf (paste0('Plots/FIGURE_6C_fGSEA_annotation_c5.bp.v7.1.symbol.gmt_dotplots2.pdf'),width = 9,5)
 print(fgseaResAll_dp)
 dev.off()
-
-
 
 ### FIGURE 6D - heatmap of average expression differences between PTENL vs controls of genes in relevant fgsea pathways ####
 pathway = c(
@@ -98,6 +96,7 @@ colnames(agr3) = c('DCs','MregDCs','Neutrophils','TAM1','TAM2','TIM_C','TIM_NC',
 avg_hm = Heatmap (agr3, 
   cluster_rows=T, 
   cluster_columns=T,
+  column_names_rot = 45,
   column_split = colnames(agr3),
   column_title_gp = gpar(fontsize = 0),
 #  column_labels = NA,
@@ -107,7 +106,7 @@ avg_hm = Heatmap (agr3,
   row_names_gp = gpar(fontsize = 7), 
   column_names_gp = gpar (fontsize = 6),
   border=T)
-png (paste0('Plots/FIGURE_6D_antigen_genes_heatmap_avg3.png'), width = 1050, height= 1900, res=300)
+pdf (paste0('Plots/FIGURE_6D_antigen_genes_heatmap_avg3.pdf'), width = 3, height= 7)
 print (avg_hm)
 dev.off() 
 
@@ -120,7 +119,7 @@ results.df = results.df[results.df$diffprop != 0, ]
 results.df = results.df[results.df$log10pval >= .95, ] # Retain interaction with low pvalues (-log10pval)
 
 # Generate dotplot of celltypes x ligand-receptors
-results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pair) 
+#results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pair) 
   mat1 = results.df %>% 
     dplyr::select(LR, celltype_pair, diffprop) %>%  
     pivot_wider(names_from = LR, values_from = diffprop) %>% 
@@ -154,6 +153,8 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
   results.df$celltype_pair = factor (results.df$celltype_pair, levels = rownames(mat1)[clust1$order])
   results.df$log10pval[results.df$log10pval < .95] = 0
   #results.df$celltype_pair = gsub ('_','',results.df$celltype_pair)
+  
+  #results.df$celltype_pair = gsub ('^_','', results.df$celltype_pair)
   dplot = ggplot(data = results.df, mapping = aes(x=celltype_pair, y=LR)) +
     geom_point(shape = 21, aes(fill = diffprop, size = log10pval), color='black') +
     scale_fill_gradient2(
@@ -171,7 +172,7 @@ results.df$celltype_pair = paste0(results.df$sampleID,'_',results.df$celltype_pa
   ggtree_plot_col = ggtree_plot1 + xlim2(dplot)
   ggtree_plot = ggtree_plot2 + ylim2(dplot)
   
-  png (paste0("Plots/FIGURE_6E_dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.png"), width=3500, height=2100, res=300, pointsize=30)
+  pdf (paste0("Plots/FIGURE_6E_dotplot_lig_rec_differential_PTENL_GFP_centered_on_selected_CPI.pdf"), width=10, height=7)
   print (plot_spacer() + plot_spacer() + ggtree_plot_col + 
     plot_spacer() + plot_spacer() + plot_spacer() +
     ggtree_plot + plot_spacer() + dplot +
